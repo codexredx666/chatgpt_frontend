@@ -22,6 +22,7 @@ const Dashboard = ({ username = "Guest User" }) => {
     const [isHoveringLogo, setIsHoveringLogo] = useState(false);
 
     // Chat State
+    const [currentChatId, setCurrentChatId] = useState(null);
     const [input, setInput] = useState("");
     const [messages, setMessages] = useState([]);
     const [isTyping, setIsTyping] = useState(false);
@@ -31,6 +32,9 @@ const Dashboard = ({ username = "Guest User" }) => {
     const [searchQuery, setSearchQuery] = useState("");
     const [history, setHistory] = useState([]);
 
+    // Auth Token
+    const [token, setToken] = useState(localStorage.getItem("access_token"));
+
     const messagesEndRef = useRef(null);
 
     // Auto-scroll to bottom
@@ -38,67 +42,153 @@ const Dashboard = ({ username = "Guest User" }) => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
 
-    const getInitials = (name) => name.substring(0, 2).toUpperCase();
-    const handleLogout = () => navigate('/login');
-    const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+    useEffect(() => {
+        if (!token) {
+            navigate('/login');
+        } else {
+            fetchHistory();
+        }
+    }, [token]);
 
-    // --- API CALL TO BACKEND ---
-    const sendMessageToBackend = async (userMessage) => {
+    // Fetch History (with optional search)
+    const fetchHistory = async (query = "") => {
+        if (!token) return;
         try {
-            const response = await fetch("http://127.0.0.1:8000/ask", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ message: userMessage }),
+            const url = query
+                ? `http://127.0.0.1:8000/chats/?search=${query}`
+                : "http://127.0.0.1:8000/chats/";
+
+            const response = await fetch(url, {
+                headers: { "Authorization": `Bearer ${token}` }
             });
 
-            if (!response.ok) {
-                throw new Error("Failed to fetch response from backend");
+            if (response.ok) {
+                const data = await response.json();
+                setHistory(data);
+            } else if (response.status === 401) {
+                handleLogout(); // Token expired
             }
-
-            const data = await response.json();
-            return data.response; // The text from OpenAI via your Backend
         } catch (error) {
-            console.error("Error connecting to backend:", error);
-            return "Error: Could not connect to the backend. Is your FastAPI server running?";
+            console.error("Error fetching history:", error);
         }
     };
 
+    // Debounced Search
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (token) fetchHistory(searchQuery);
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [searchQuery, token]);
+
+    const getInitials = (name) => name.substring(0, 2).toUpperCase();
+
+    const handleLogout = () => {
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("refresh_token");
+        localStorage.removeItem("token_type");
+        navigate('/login');
+    };
+
+    const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+
     const handleNewChat = () => {
+        setCurrentChatId(null);
         setMessages([]);
         setInput("");
         setIsSidebarOpen(false);
     };
 
-    const handleSendMessage = async () => {
-        if (!input.trim()) return;
+    const loadChat = async (chatId) => {
+        if (!token) return;
+        try {
+            const response = await fetch(`http://127.0.0.1:8000/chats/${chatId}`, {
+                headers: { "Authorization": `Bearer ${token}` }
+            });
 
-        // 1. Add User Message to UI
+            if (response.ok) {
+                const data = await response.json();
+                setCurrentChatId(data.id);
+                // Map backend messages (content/role) to frontend (text/role)
+                setMessages(data.messages.map(m => ({
+                    role: m.role,
+                    text: m.content
+                })));
+                setIsSidebarOpen(false); // Close sidebar on mobile/small screens usually
+            }
+        } catch (error) {
+            console.error("Error loading chat:", error);
+        }
+    };
+
+    const handleSendMessage = async () => {
+        if (!input.trim() || !token) return;
+
         const currentInput = input;
+
+        // 1. Add User Message to UI (Optimistic)
         const userMsgObject = { role: 'user', text: currentInput };
         setMessages(prev => [...prev, userMsgObject]);
 
         setInput("");
         setIsTyping(true);
 
-        // 2. Call your Backend API
-        const aiResponseText = await sendMessageToBackend(currentInput);
+        try {
+            let chatId = currentChatId;
 
-        // 3. Add AI Response to UI
-        const aiMsgObject = { role: 'ai', text: aiResponseText };
-        setMessages(prev => [...prev, aiMsgObject]);
-        setIsTyping(false);
+            // 2. Create Chat if doesn't exist
+            if (!chatId) {
+                const createRes = await fetch("http://127.0.0.1:8000/chats/", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ title: currentInput.substring(0, 30) })
+                });
+
+                if (createRes.ok) {
+                    const newChat = await createRes.json();
+                    chatId = newChat.id;
+                    setCurrentChatId(chatId);
+                    fetchHistory(); // Refresh sidebar to show new chat
+                } else {
+                    throw new Error("Failed to create chat");
+                }
+            }
+
+            // 3. Send Message to Backend
+            const msgRes = await fetch(`http://127.0.0.1:8000/chats/${chatId}/message`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`
+                },
+                body: JSON.stringify({ role: "user", content: currentInput })
+            });
+
+            if (!msgRes.ok) throw new Error("Failed to send message");
+
+            const updatedChat = await msgRes.json();
+
+            // 4. Update UI with AI response
+            // We get the full chat object back, let's just grab the last message which should be the AI response
+            const lastMsg = updatedChat.messages[updatedChat.messages.length - 1];
+            if (lastMsg && lastMsg.role === 'ai') {
+                setMessages(prev => [...prev, { role: 'ai', text: lastMsg.content }]);
+            }
+
+        } catch (error) {
+            console.error("Error sending message:", error);
+            setMessages(prev => [...prev, { role: 'ai', text: "Error: Could not connect to backend." }]);
+        } finally {
+            setIsTyping(false);
+        }
     };
 
     const handleKeyDown = (e) => {
         if (e.key === 'Enter') handleSendMessage();
     };
-
-    // Filter History Logic (Placeholder until you connect DB history)
-    const filteredHistory = history.filter(item =>
-        item.title && item.title.toLowerCase().includes(searchQuery.toLowerCase())
-    );
 
     return (
         <div className="flex h-screen w-full bg-white text-[#0d0d0d] font-sans overflow-hidden">
@@ -149,10 +239,14 @@ const Dashboard = ({ username = "Guest User" }) => {
                     {/* History List */}
                     <div className="mt-4 px-2">
                         <div className="text-xs font-semibold text-gray-400 mb-2 ml-2">Recent</div>
-                        {filteredHistory.length > 0 ? (
-                            filteredHistory.map((item) => (
-                                <button key={item.id} className="w-full text-left p-2 rounded-lg hover:bg-black/5 text-sm text-gray-700 truncate transition mb-1">
-                                    {item.title}
+                        {history.length > 0 ? (
+                            history.map((item) => (
+                                <button
+                                    key={item.id}
+                                    onClick={() => loadChat(item.id)}
+                                    className={`w-full text-left p-2 rounded-lg hover:bg-black/5 text-sm text-gray-700 truncate transition mb-1 ${currentChatId === item.id ? 'bg-black/10' : ''}`}
+                                >
+                                    {item.title || "New Chat"}
                                 </button>
                             ))
                         ) : (
