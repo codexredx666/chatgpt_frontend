@@ -46,13 +46,13 @@ const Signup = () => {
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
         {/* Lock Icon */}
         <div className="flex justify-center">
-          <div className="bg-indigo-600 p-3 rounded-xl shadow-lg">
+          <div className="bg-gray-600 p-3 rounded-xl shadow-lg">
             <svg className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
           </div>
         </div>
-        <h2 className="mt-6 text-3xl font-extrabold text-gray-900">Create your account</h2>
+        <h2 className="mt-6 text-3xl font-extrabold text-gray-600">Create your new account</h2>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
@@ -66,7 +66,7 @@ const Signup = () => {
                   type="email"
                   required
                   placeholder="you@example.com"
-                  className="appearance-none block w-full px-3 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  className="appearance-none block w-full px-3 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-gray-600 focus:border-gray-600 sm:text-sm"
                   onChange={handleChange}
                 />
               </div>
@@ -80,7 +80,7 @@ const Signup = () => {
                   type="password"
                   required
                   placeholder="••••••••"
-                  className="appearance-none block w-full px-3 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  className="appearance-none block w-full px-3 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-gray-600 focus:border-gray-600 sm:text-sm"
                   onChange={handleChange}
                 />
               </div>
@@ -90,7 +90,7 @@ const Signup = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-gray-600 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-600 transition-colors"
               >
                 {loading ? 'Processing...' : 'Sign Up'}
               </button>
@@ -126,7 +126,7 @@ const Signup = () => {
 
         <p className="mt-6 text-center text-sm text-gray-600">
           Already have an account?{' '}
-          <a href="/login" className="font-medium text-indigo-600 hover:text-indigo-500">
+          <a href="/login" className="font-medium text-gray-600 hover:text-gray-500">
             Sign in
           </a>
         </p>
